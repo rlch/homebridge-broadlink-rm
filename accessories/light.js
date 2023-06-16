@@ -67,6 +67,21 @@ class LightAccessory extends SwitchAccessory {
     }
   }
 
+  async setExclusivesOFF () {
+    const { log, name, logLevel } = this;
+    if (this.exclusives) {
+      this.exclusives.forEach(x => {
+	if (x.state.switchState) {
+	  this.log(`${name} setSwitchState: (${x.name} is configured to be turned off)`);
+	  x.reset();
+	  x.state.switchState = false;
+	  x.lastBrightness = undefined;
+          x.serviceManager.refreshCharacteristicUI(Characteristic.On);
+	}
+      });
+    }
+  }
+
   async setSwitchState (hexData, previousValue) {
     const { config, data, host, log, name, state, logLevel, serviceManager } = this;
     let { defaultBrightness, useLastKnownBrightness } = config;
