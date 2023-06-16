@@ -123,13 +123,13 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
     if (sendCount > 1) {interval = interval || 0.1;}
 
     // Itterate through each hex config in the array
-    for (let index = 0; index < sendCount; index++) {
+    for (let index = 0; data && index < sendCount; index++) {
       await sendData({ host, hexData: data, log, name, logLevel });
 
       if (interval && index < sendCount - 1) {
         // this.intervalTimeoutPromise = delayForDuration(interval);
         // await this.intervalTimeoutPromise;
-	await new Promise(resolve => setTimeout(resolve, interval * 1000));
+        await new Promise(resolve => setTimeout(resolve, interval * 1000));
       }
     }
   }
