@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+ - w1 and file temperatures will return a battery level of 100 if none found
 ### Fixed
  - Fixes log error (Thanks @hypery2k) #606
  - Fan speed fixes (Thanks @dnicolson) #592 and #593
