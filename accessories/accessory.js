@@ -5,7 +5,6 @@ const { HomebridgeAccessory } = require('../base');
 const sendData = require('../helpers/sendData');
 const delayForDuration = require('../helpers/delayForDuration');
 const catchDelayCancelError = require('../helpers/catchDelayCancelError');
-const { getDevice } = require('../helpers/getDevice');
 
 class BroadlinkRMAccessory extends HomebridgeAccessory {
 
@@ -67,15 +66,15 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
   
   reset () {
     // Clear Multi-hex timeouts
-    // if (this.intervalTimeoutPromise) {
-    //   this.intervalTimeoutPromise.cancel();
-    //   this.intervalTimeoutPromise = null;
-    // }
+    if (this.intervalTimeoutPromise) {
+      this.intervalTimeoutPromise.cancel();
+      this.intervalTimeoutPromise = null;
+    }
 
-    // if (this.pauseTimeoutPromise) {
-    //   this.pauseTimeoutPromise.cancel();
-    //   this.pauseTimeoutPromise = null;
-    // }
+    if (this.pauseTimeoutPromise) {
+      this.pauseTimeoutPromise.cancel();
+      this.pauseTimeoutPromise = null;
+    }
   }
 
   async performSend (data, actionCallback) {
@@ -84,22 +83,13 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
     //Error catch
     if(data === undefined){return}
 
-    // Get the Broadlink device
-    const device = getDevice({ host, log });
-
-    if (!host || !device) {	// Error reporting
-      await sendData({ host, hexData: data, log, name, logLevel });
+    if (typeof data === 'string') {
+      sendData({ host, hexData: data, log, name, logLevel });
 
       return;
     }
 
-    await device.mutex.use(async () => {	// Queue command sequence
-      if (typeof data === 'string') {
-	await sendData({ host, hexData: data, log, name, logLevel });
-	
-	return;
-      }
-      
+    await catchDelayCancelError(async () => {
       // Itterate through each hex config in the array
       for (let index = 0; index < data.length; index++) {
         const { pause } = data[index];
@@ -107,8 +97,8 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
         await this.performRepeatSend(data[index], actionCallback);
 
         if (pause) {
-	  await new Promise(resolve => setTimeout(resolve, pause * 1000));
-	  log(`${name} pause (${device.host.address}; ${device.host.macAddress}) ${pause * 1000} ms`);
+          this.pauseTimeoutPromise = delayForDuration(pause);
+          await this.pauseTimeoutPromise;
         }
       }
     });
@@ -122,12 +112,12 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
     if (sendCount > 1) {interval = interval || 0.1;}
 
     // Itterate through each hex config in the array
-    for (let index = 0; data && index < sendCount; index++) {
-      await sendData({ host, hexData: data, log, name, logLevel });
+    for (let index = 0; index < sendCount; index++) {
+      sendData({ host, hexData: data, log, name, logLevel });
 
-      if (interval && index < sendCount) {
-	await new Promise(resolve => setTimeout(resolve, interval * 1000));
-	log(`${name} interval (${host}) ${interval * 1000} ms`);
+      if (interval && index < sendCount - 1) {
+        this.intervalTimeoutPromise = delayForDuration(interval);
+        await this.intervalTimeoutPromise;
       }
     }
   }

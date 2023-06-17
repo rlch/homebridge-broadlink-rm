@@ -4,7 +4,7 @@ const delayForDuration = require('./delayForDuration');
 const dgram = require('dgram');
 const Mutex = require('await-semaphore').Mutex;
 
-const pingFrequency = 20000;
+const pingFrequency = 5000;
 const keepAliveFrequency = 90000;
 const pingTimeout = 5;
 
@@ -35,22 +35,16 @@ const startPing = (device, log) => {
         }
         
         if (!active && device.state === 'active' && device.retryCount === 2) {
-	  if (!broadlink.accessories || broadlink.accessories.find((x) => x.host === undefined || x.host === device.host.address || x.host === device.host.macAddress)) {
-            log(`Broadlink RM device at ${device.host.address} (${device.host.macAddress || ''}) is no longer reachable after three attempts.`);
-	  }
+          log(`Broadlink RM device at ${device.host.address} (${device.host.macAddress || ''}) is no longer reachable after three attempts.`);
 
           device.state = 'inactive';
           device.retryCount = 0;
         } else if (!active && device.state === 'active') {
-	  if (!broadlink.accessories || broadlink.accessories.find((x) => x.host === undefined || x.host === device.host.address || x.host === device.host.macAddress)) {
-	    if(broadlink.debug) {log(`Broadlink RM device at ${device.host.address} (${device.host.macAddress || ''}) is no longer reachable. (attempt ${device.retryCount})`);}
-	  }
+          if(broadlink.debug) {log(`Broadlink RM device at ${device.host.address} (${device.host.macAddress || ''}) is no longer reachable. (attempt ${device.retryCount})`);}
 
           device.retryCount += 1;
         } else if (active && device.state !== 'active') {
-	  if (!broadlink.accessories || broadlink.accessories.find((x) => x.host === undefined || x.host === device.host.address || x.host === device.host.macAddress)) {
-            if (device.state === 'inactive') {log(`Broadlink RM device at ${device.host.address} (${device.host.macAddress || ''}) has been re-discovered.`);}
-	  }
+          if (device.state === 'inactive') {log(`Broadlink RM device at ${device.host.address} (${device.host.macAddress || ''}) has been re-discovered.`);}
 
           device.state = 'active';
           device.retryCount = 0;
@@ -69,10 +63,9 @@ const discoveredDevices = {};
 const manualDevices = {};
 let discoverDevicesInterval;
 
-const discoverDevices = (automatic = true, log, logLevel, deviceDiscoveryTimeout = 60, accessories = null) => {
+const discoverDevices = (automatic = true, log, logLevel, deviceDiscoveryTimeout = 60) => {
   broadlink.log = log;
   broadlink.debug = logLevel <=1;
-  broadlink.accessories = accessories;
   //broadlink.logLevel = logLevel;
 
   if (automatic) {
