@@ -1,3 +1,4 @@
+// -*- js-indent-level : 2 -*-
 const { assert } = require('chai');
 const ServiceManagerTypes = require('../helpers/serviceManagerTypes');
 const delayForDuration = require('../helpers/delayForDuration');
@@ -6,15 +7,15 @@ const catchDelayCancelError = require('../helpers/catchDelayCancelError')
 const SwitchAccessory = require('./switch');
 
 class LightAccessory extends SwitchAccessory {
-
+    
   setDefaults () {
     super.setDefaults();
-  
+    
     const { config } = this;
 
     config.onDelay = config.onDelay || 0.1;
     config.defaultBrightness = config.defaultBrightness || 100;
-    config.defaultColorTemperature = config.defaultColorTemperature || 140;
+    config.defaultColorTemperature = config.defaultColorTemperature || 500;
   }
 
   reset () {
@@ -82,6 +83,21 @@ class LightAccessory extends SwitchAccessory {
     }
   }
 
+  async setExclusivesOFF () {
+    const { log, name, logLevel } = this;
+    if (this.exclusives) {
+      this.exclusives.forEach(x => {
+	if (x.state.switchState) {
+	  this.log(`${name} setSwitchState: (${x.name} is configured to be turned off)`);
+	  x.reset();
+	  x.state.switchState = false;
+	  x.lastBrightness = undefined;
+          x.serviceManager.refreshCharacteristicUI(Characteristic.On);
+	}
+      });
+    }
+  }
+
   async setSwitchState (hexData, previousValue) {
     const { config, data, host, log, name, state, logLevel, serviceManager } = this;
     let { defaultBrightness, useLastKnownBrightness } = config;
@@ -93,18 +109,21 @@ class LightAccessory extends SwitchAccessory {
       this.setExclusivesOFF();
       const brightness = (useLastKnownBrightness && state.brightness > 0) ? state.brightness : defaultBrightness;
       const colorTemperature = useLastKnownColorTemperature ? state.colorTemperature : defaultColorTemperature;
-      if (brightness !== state.brightness || previousValue !== state.switchState) {
+      if (brightness !== state.brightness || previousValue !== state.switchState || colorTemperature !== state.colorTemperature) {
         log(`${name} setSwitchState: (brightness: ${brightness})`);
 
         state.switchState = false;
         state.brightness = brightness;
         serviceManager.setCharacteristic(Characteristic.Brightness, brightness);
+	serviceManager.refreshCharacteristicUI(Characteristic.Brightness);
 	if (this.dataKeys('colorTemperature').length > 0) {
           state.colorTemperature = colorTemperature;
           serviceManager.setCharacteristic(Characteristic.ColorTemperature, colorTemperature);
+	  serviceManager.refreshCharacteristicUI(Characteristic.ColorTemperature);
 	}
       } else {
         if (hexData) {await this.performSend(hexData);}
+	await this.mqttpublish('On', 'true');
 
         this.checkAutoOnOff();
       }
@@ -112,6 +131,7 @@ class LightAccessory extends SwitchAccessory {
       this.lastBrightness = undefined;
 
       if (hexData) {await this.performSend(hexData);}
+      await this.mqttpublish('On', 'false');
 
       this.checkAutoOnOff();
     }
@@ -142,6 +162,7 @@ class LightAccessory extends SwitchAccessory {
           this.onDelayTimeoutPromise = delayForDuration(onDelay);
           await this.onDelayTimeoutPromise;
         }
+	await this.mqttpublish('On', 'true');
       }
 
       // Find hue closest to the one requested
@@ -170,6 +191,7 @@ class LightAccessory extends SwitchAccessory {
 
         if (state.brightness > 0) {
           state.switchState = true;
+	  // await this.mqttpublish('On', 'true');
         }
 
         await this.checkAutoOnOff();
@@ -191,10 +213,10 @@ class LightAccessory extends SwitchAccessory {
             log(`${name} setBrightness: (turn on, wait ${onDelay}s)`);
             await this.performSend(on);
     
-            log(`${name} setHue: (wait ${onDelay}s then send data)`);
             this.onDelayTimeoutPromise = delayForDuration(onDelay);
             await this.onDelayTimeoutPromise;
           }
+    	  await this.mqttpublish('On', 'true');
         }
 
 	if (data['brightness+'] || data['brightness-'] || data['availableBrightnessSteps']) {
@@ -231,6 +253,7 @@ class LightAccessory extends SwitchAccessory {
       } else {
         log(`${name} setBrightness: (off)`);
         await this.performSend(off);
+    	await this.mqttpublish('On', 'false');
       }
 
       await this.checkAutoOnOff();
@@ -256,6 +279,7 @@ class LightAccessory extends SwitchAccessory {
           this.onDelayTimeoutPromise = delayForDuration(onDelay);
           await this.onDelayTimeoutPromise;
         }
+	await this.mqttpublish('On', 'true');
       }
       if (data['colorTemperature+'] || data['colorTemperature-'] || data['availableColorTemperatureSteps']) {
         assert(data['colorTemperature+'] && data['colorTemperature-'] && data['availableColorTemperatureSteps'], `\x1b[31m[CONFIG ERROR] \x1b[33mcolorTemperature+, colorTemperature- and availableColorTemperatureSteps\x1b[0m need to be set.`);
@@ -313,12 +337,51 @@ class LightAccessory extends SwitchAccessory {
     return foundValues
   }
 
+  async getLastActivation(callback) {
+    const lastActivation = this.state.lastActivation ?
+	  Math.max(0, this.state.lastActivation - this.historyService.getInitialTime()) : 0;
+    
+    callback(null, lastActivation);
+  }
+
+  localCharacteristic(key, uuid, props) {
+    let characteristic = class extends Characteristic {
+      constructor() {
+	super(key, uuid);
+	this.setProps(props);
+      }
+    }
+    characteristic.UUID = uuid;
+
+    return characteristic;
+  }
+
   setupServiceManager () {
     const { data, name, config, serviceManagerType } = this;
     const { on, off } = data || { };
+    const history = config.history === true || config.noHistory === false;
     
-    this.serviceManager = new ServiceManagerTypes[serviceManagerType](name, Service.Lightbulb, this.log);
+    //this.serviceManager = new ServiceManagerTypes[serviceManagerType](name, Service.Lightbulb, this.log);
+    this.serviceManager = new ServiceManagerTypes[serviceManagerType](name, history ? Service.Switch : Service.Lightbulb, this.log);
 
+    if (history) {
+      const LastActivationCharacteristic = this.localCharacteristic(
+	'LastActivation', 'E863F11A-079E-48FF-8F27-9C2605A29F52',
+	{format: Characteristic.Formats.UINT32,
+	 unit: Characteristic.Units.SECONDS,
+	 perms: [
+	   Characteristic.Perms.READ,
+	   Characteristic.Perms.NOTIFY
+	 ]});
+      
+      this.serviceManager.addGetCharacteristic({
+	name: 'LastActivation',
+	type: LastActivationCharacteristic,
+	method: this.getLastActivation,
+	bind: this
+      });
+    }
+  
     this.serviceManager.addToggleCharacteristic({
       name: 'switchState',
       type: Characteristic.On,
@@ -353,7 +416,7 @@ class LightAccessory extends SwitchAccessory {
         bind: this,
         props: {
           setValuePromise: this.setColorTemperature.bind(this),
-          ignorePreviousValue: true
+          ignorePreviousValue: true // TODO: Check what this does and test it
         }
       });
     }

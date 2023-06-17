@@ -92,26 +92,28 @@ class TVAccessory extends BroadlinkRMAccessory {
   }
 
   async pingCallback(active) {
-    const { config, state, serviceManager } = this;
+    const { name, config, state, serviceManager, log } = this;
     
     if (this.stateChangeInProgress){ 
       return; 
     }
 
     if (this.lastPingResponse !== undefined && this.lastPingResponse !== active) {
+      // console.log(`[${new Date().toLocaleString()}] ${name} Ping: Turned ${active ? 'on' : 'off'}.`);
       if (config.syncInputSourceWhenOn && active && this.state.currentInput !== undefined) {
+	log(`${name} received ping response. Sync input source.`);
 	await this.setInputSource();	// sync if asynchronously turned on
       }
     }
     this.lastPingResponse = active;
     if (config.pingIPAddressStateOnly) {
-      state.switchState = active ? true : false;
+      state.switchState = active ? 1 : 0;
       serviceManager.refreshCharacteristicUI(Characteristic.Active);
 
       return;
     }
 
-    const value = active ? true : false;
+    const value = active ? 1 : 0;
     serviceManager.setCharacteristic(Characteristic.Active, value);
   }
 
@@ -124,6 +126,7 @@ class TVAccessory extends BroadlinkRMAccessory {
     if (hexData) {await this.performSend(hexData);}
 
     this.checkAutoOnOff();
+    // console.log(`[${new Date().toLocaleString()}] ${name} Active: set to ${this.state.switchState ? 'ON' : 'OFF'}.`);
   }
   
   async checkPingGrace () {
@@ -202,6 +205,8 @@ class TVAccessory extends BroadlinkRMAccessory {
     }
   
     await this.performSend(data.inputs[newValue].data);
+    // this.serviceManager.setCharacteristic(Characteristic.ActiveIdentifier, newValue);
+    // log(`${name} select input source to ${data.inputs[newValue].name}(${newValue}).`);
   }
   
   setupServiceManager() {
@@ -246,6 +251,34 @@ class TVAccessory extends BroadlinkRMAccessory {
 	ignorePreviousValue: true
       }
     });
+
+    // this.serviceManager.setCharacteristic(Characteristic.ActiveIdentifier, 1);
+
+    // this.serviceManager
+    //   .getCharacteristic(Characteristic.ActiveIdentifier)
+    //   .on('get', (callback) => {
+    //     //console.log(`${name} Input: get ${this.state.input}.`);
+    // 	callback(null, this.state.input || 0);
+    //   })
+    //   .on('set', (newValue, callback) => {
+    //     if (
+    //       !data ||
+    //       !data.inputs ||
+    //       !data.inputs[newValue] ||
+    //       !data.inputs[newValue].data
+    //     ) {
+    //       log(`${name} Input: No input data found. Ignoring request.`);
+    //       callback(null);
+    //       return;
+    //     }
+
+    //     this.state.input = newValue;
+    // 	//this.serviceManager.setCharacteristic(Characteristic.ActiveIdentifier, newValue);
+    //     this.performSend(data.inputs[newValue].data);
+
+    //     callback(null);
+    //     console.log(`${name} Input: set to ${newValue}.`);
+    //   });
 
     this.serviceManager
       .getCharacteristic(Characteristic.RemoteKey)
@@ -350,7 +383,8 @@ class TVAccessory extends BroadlinkRMAccessory {
         callback(null);
       });
 
-    const speakerService = new Service.TelevisionSpeaker('Speaker', 'Speaker');
+    // const speakerService = new Service.TelevisionSpeaker('Speaker', 'Speaker');
+    const speakerService = new Service.TelevisionSpeaker(`${name} Speaker`, '${name} Speaker');
 
     speakerService.setCharacteristic(
       Characteristic.Active,
@@ -393,11 +427,12 @@ class TVAccessory extends BroadlinkRMAccessory {
         await this.performSend(hexData);
         callback(null);
       });
-
+    
     speakerService.setCharacteristic(Characteristic.Mute, false);
     speakerService
       .getCharacteristic(Characteristic.Mute)
       .on('get', (callback) => {
+	// console.log(`${name} Mute: get ${this.state.Mute}.`);
 	callback(null, this.state.Mute || false);
       })
       .on('set', async (newValue, callback) => {
@@ -428,7 +463,8 @@ class TVAccessory extends BroadlinkRMAccessory {
     if (data.inputs && data.inputs instanceof Array) {
       for (let i = 0; i < data.inputs.length; i++) {
         const input = data.inputs[i];
-        const inputService = new Service.InputSource(`input${i}`, `input${i}`);
+        // const inputService = new Service.InputSource(`input${i}`, `input${i}`);
+        const inputService = new Service.InputSource(`${name} input${i}`, `${name} input${i}`);
 
         inputService
           .setCharacteristic(Characteristic.Identifier, i)

@@ -88,7 +88,7 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
     const device = getDevice({ host, log });
 
     if (!host || !device) {	// Error reporting
-      sendData({ host, hexData: data, log, name, logLevel });
+      await sendData({ host, hexData: data, log, name, logLevel });
 
       return;
     }
@@ -107,9 +107,8 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
         await this.performRepeatSend(data[index], actionCallback);
 
         if (pause) {
-          // this.pauseTimeoutPromise = delayForDuration(pause);
-          // await this.pauseTimeoutPromise;
 	  await new Promise(resolve => setTimeout(resolve, pause * 1000));
+	  log(`${name} pause (${device.host.address}; ${device.host.macAddress}) ${pause * 1000} ms`);
         }
       }
     });
@@ -126,10 +125,9 @@ class BroadlinkRMAccessory extends HomebridgeAccessory {
     for (let index = 0; data && index < sendCount; index++) {
       await sendData({ host, hexData: data, log, name, logLevel });
 
-      if (interval && index < sendCount - 1) {
-        // this.intervalTimeoutPromise = delayForDuration(interval);
-        // await this.intervalTimeoutPromise;
-        await new Promise(resolve => setTimeout(resolve, interval * 1000));
+      if (interval && index < sendCount) {
+	await new Promise(resolve => setTimeout(resolve, interval * 1000));
+	log(`${name} interval (${host}) ${interval * 1000} ms`);
       }
     }
   }

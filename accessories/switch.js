@@ -1,3 +1,4 @@
+// -*- js-indent-level : 2 -*-
 const ServiceManagerTypes = require('../helpers/serviceManagerTypes');
 const delayForDuration = require('../helpers/delayForDuration');
 const catchDelayCancelError = require('../helpers/catchDelayCancelError');
@@ -10,8 +11,37 @@ class SwitchAccessory extends BroadlinkRMAccessory {
   constructor (log, config = {}, serviceManagerType) {    
     super(log, config, serviceManagerType);
 
-    if (!config.isUnitTest) {this.checkPing(ping)}
-    
+      // Fakegato setup
+    if (config.history === true || config.noHistory === false) {
+      this.historyService = new HistoryService('switch', { displayName: config.name, log: log }, { storage: 'fs', filename: 'RMPro_' + config.name.replace(' ','-') + '_persist.json'});
+      this.historyService.addEntry(
+	{time: Math.round(new Date().valueOf()/1000),
+	 status: this.state.switchState ? 1 : 0})
+      
+      let state2 = this.state;
+      this.state = new Proxy(state2, {
+	set: async function(target, key, value) {
+	  if (target[key] != value) {
+	    Reflect.set(target, key, value);
+	    if (this.historyService) {
+	      if (key == `switchState`) {
+		//this.log(`adding history of switchState.`, value);
+		const time = Math.round(new Date().valueOf()/1000);
+		//if (value) {
+		  this.state.lastActivation = time;
+		//}
+		this.historyService.addEntry(
+		  {time: time, status: value ? 1 : 0})
+		// await this.mqttpublish('On', value ? 'true' : 'false')
+	      }
+	    }
+	  }
+	  return true
+	}.bind(this)
+      })
+
+      if (!config.isUnitTest) {this.checkPing(ping)}
+    } 
   }
 
   setDefaults () {
@@ -113,10 +143,12 @@ class SwitchAccessory extends BroadlinkRMAccessory {
     this.reset();
 
     if (hexData) {await this.performSend(hexData);}
+    await this.mqttpublish('On', state.switchState ? 'true' : 'false')
     
     if (config.stateless === true) { 
       state.switchState = false;
       serviceManager.refreshCharacteristicUI(Characteristic.On);
+      await this.mqttpublish('On', 'false')
     } else {
       this.checkAutoOnOff();
     }
@@ -169,12 +201,70 @@ class SwitchAccessory extends BroadlinkRMAccessory {
     });
   }
 
+  async getLastActivation(callback) {
+    const lastActivation = this.state.lastActivation ?
+	  Math.max(0, this.state.lastActivation - this.historyService.getInitialTime()) : 0;
+    
+    callback(null, lastActivation);
+  }
+
+  localCharacteristic(key, uuid, props) {
+    let characteristic = class extends Characteristic {
+      constructor() {
+	super(key, uuid);
+	this.setProps(props);
+      }
+    }
+    characteristic.UUID = uuid;
+
+    return characteristic;
+  }
+
+  // MQTT
+  onMQTTMessage (identifier, message) {
+    const { state, logLevel, log, name, config } = this;
+    const mqttStateOnly = config.mqttStateOnly === false ? false : true;
+
+    super.onMQTTMessage(identifier, message);
+
+    if (identifier.toLowerCase() === 'on') {
+      const on = this.mqttValuesTemp[identifier] === 'true' ? true : false;
+      this.reset();
+      if (mqttStateOnly) {
+	this.state.switchState = on;
+	this.serviceManager.refreshCharacteristicUI(Characteristic.On);
+      } else {
+	this.serviceManager.setCharacteristic(Characteristic.On, on)
+      }
+      log(`${name} onMQTTMessage (set switchState to ${this.state.switchState}).`);
+    }
+  }
+
   setupServiceManager () {
     const { data, name, config, serviceManagerType } = this;
     const { on, off } = data || { };
+    const history = config.history === true || config.noHistory === false;
     
     this.serviceManager = new ServiceManagerTypes[serviceManagerType](name, Service.Switch, this.log);
 
+    if (history) {
+      const LastActivationCharacteristic = this.localCharacteristic(
+	'LastActivation', 'E863F11A-079E-48FF-8F27-9C2605A29F52',
+	{format: Characteristic.Formats.UINT32,
+	 unit: Characteristic.Units.SECONDS,
+	 perms: [
+	   Characteristic.Perms.READ,
+	   Characteristic.Perms.NOTIFY
+	 ]});
+      
+      this.serviceManager.addGetCharacteristic({
+	name: 'LastActivation',
+	type: LastActivationCharacteristic,
+	method: this.getLastActivation,
+	bind: this
+      });
+    }
+  
     this.serviceManager.addToggleCharacteristic({
       name: 'switchState',
       type: Characteristic.On,
