@@ -118,7 +118,7 @@ class FanAccessory extends SwitchAccessory {
     const foundSpeeds = Object.keys(data || {}).reduce((accu, key) => {
       const match = key.match(/fanSpeed(\d+)/);
       if (match && match[1]) {
-          accu.push(match[1]);
+        accu.push(match[1]);
       }
       return accu;
     }, []);
