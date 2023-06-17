@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Added
  - w1 and file temperatures will return a battery level of 100 if none found
+ - Serializes the simultaneous IR/RF commands. (Thanks @banboobee) #520
 ### Fixed
  - Fixes log error (Thanks @hypery2k) #606
  - Fan speed fixes (Thanks @dnicolson) #592 and #593
