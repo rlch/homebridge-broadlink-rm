@@ -345,9 +345,9 @@ class AirConAccessory extends BroadlinkRMAccessory {
     let finalTemperature = temperature;
     if (mode === 'off') {
       let hexData = data.off;
-    } else {
-      let hexData = data[`${mode}${temperature}`];
-    }
+      return { finalTemperature, hexData };
+    } 
+    let hexData = data[`${mode}${temperature}`];
 
     if (!hexData) {
       // Mode based code not found, try mode-less
