@@ -343,7 +343,11 @@ class AirConAccessory extends BroadlinkRMAccessory {
     const { defaultHeatTemperature, defaultCoolTemperature, heatTemperature } = config;
 
     let finalTemperature = temperature;
-    let hexData = data[`${mode}${temperature}`];
+    if (mode === 'off') {
+      let hexData = data.off;
+    } else {
+      let hexData = data[`${mode}${temperature}`];
+    }
 
     if (!hexData) {
       // Mode based code not found, try mode-less
