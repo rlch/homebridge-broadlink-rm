@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 ### Fixed
  - Fixes 'No off HEX code found for XX' error (#615)
+### Changed
+ - Heater-Cooler tempStepSize default changed to 1 to match AC (#616)
 
 ## [4.4.13] - 2023-06-19
 ### Added
