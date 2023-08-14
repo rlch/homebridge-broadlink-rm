@@ -3,6 +3,7 @@ const BroadlinkRMAccessory = require('./accessory');
 const catchDelayCancelError = require('../helpers/catchDelayCancelError');
 const delayForDuration = require('../helpers/delayForDuration');
 const ping = require('../helpers/ping');
+const arp = require('../helpers/arp')
 
 class FanAccessory extends BroadlinkRMAccessory {
   constructor(log, config = {}, serviceManagerType) {
@@ -104,16 +105,16 @@ class FanAccessory extends BroadlinkRMAccessory {
     serviceManager.setCharacteristic(Characteristic.Active, value);
   }
 
-  async setSwitchState(hexData) {
-    const { data, host, log, name, logLevel } = this;
+  //async setSwitchState(hexData) {
+  //  const { data, host, log, name, logLevel } = this;
 
-    this.stateChangeInProgress = true;
-    this.reset();
+  //  this.stateChangeInProgress = true;
+  //  this.reset();
 
-    if (hexData) {await this.performSend(hexData);}
+  //  if (hexData) {await this.performSend(hexData);}
 
-    this.checkAutoOnOff();
-  }
+  //  this.checkAutoOnOff();
+  //}
 
   async checkPingGrace () {
     await catchDelayCancelError(async () => {
