@@ -126,7 +126,7 @@ class TVAccessory extends BroadlinkRMAccessory {
     if (hexData && !soft) {
       await this.performSend(hexData);
     }
-    soft = null;
+    this.soft = null;
 
     this.checkAutoOnOff();
   }
