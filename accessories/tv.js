@@ -118,14 +118,15 @@ class TVAccessory extends BroadlinkRMAccessory {
   }
 
   async setSwitchState(hexData) {
-    const { data, host, log, name, logLevel } = this;
+    const { data, host, log, name, logLevel, soft } = this;
 
     this.stateChangeInProgress = true;
     this.reset();
 
-    if (hexData) {
+    if (hexData && !soft) {
       await this.performSend(hexData);
     }
+    soft = null;
 
     this.checkAutoOnOff();
   }
@@ -163,6 +164,7 @@ class TVAccessory extends BroadlinkRMAccessory {
         this.autoOffTimeoutPromise = delayForDuration(onDuration);
         await this.autoOffTimeoutPromise;
 
+        this.soft = enableSoftAutoOff;
         serviceManager.setCharacteristic(Characteristic.Active, false);
       }
     });
@@ -182,11 +184,8 @@ class TVAccessory extends BroadlinkRMAccessory {
         this.autoOnTimeoutPromise = delayForDuration(offDuration);
         await this.autoOnTimeoutPromise;
 
-        if (enableSoftAutoOn) {
-          serviceManager.setCharacteristic(Characteristic.Active, true);
-        } else {
-          serviceManager.setCharacteristic(Characteristic.Active, true);
-        }
+        this.soft = enableSoftAutoOn;
+        serviceManager.setCharacteristic(Characteristic.Active, true);
       }
     });
   }
